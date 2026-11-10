@@ -47,7 +47,9 @@ public class FakturService {
                     + ", belum bisa difakturkan.");
         }
 
-        BigDecimal diskon = so.getDiskonStandar().add(so.getDiskonTambahan());
+        // SO hasil impor tidak punya diskon tambahan (NULL). Sesuai aturan bisnis: tidak diisi = 0.
+        BigDecimal diskonTambahan = so.getDiskonTambahan() != null ? so.getDiskonTambahan() : BigDecimal.ZERO;
+        BigDecimal diskon = so.getDiskonStandar().add(diskonTambahan);
         List<FakturDto.Baris> rincian = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         for (SalesOrderItem i : so.getItem()) {
