@@ -1,5 +1,6 @@
 package id.nusantararasa.erp.faktur;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -77,5 +78,45 @@ class FakturApiTest {
     @Test
     void soTidakAda() throws Exception {
         mvc.perform(post("/api/faktur/9999")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void lunasiFakturBelumLunas() throws Exception {
+        mvc.perform(post("/api/faktur/2/lunasi"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(2))
+                .andExpect(jsonPath("$.nomor").value("INV/2026/10/00002"))
+                .andExpect(jsonPath("$.status").value("LUNAS"));
+
+        mvc.perform(get("/api/faktur"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 2)].status").value("LUNAS"));
+    }
+
+    @Test
+    void fakturYangSudahLunasTidakBisaDilunasiLagi() throws Exception {
+        mvc.perform(post("/api/faktur/1/lunasi"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.pesan").value(containsString("sudah lunas")));
+    }
+
+    @Test
+    void lunasiFakturYangTidakAda() throws Exception {
+        mvc.perform(post("/api/faktur/9999/lunasi"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.pesan").value("Faktur 9999 tidak ditemukan."));
+    }
+
+    @Test
+    void pelunasanMengurangiPiutangSehinggaSoTidakDitahan() throws Exception {
+        // CUS-021: piutang Rp 36.750.000 (faktur 6) dari limit Rp 40.000.000. Setelah lunas piutang 0.
+        mvc.perform(post("/api/faktur/6/lunasi")).andExpect(status().isOk());
+
+        mvc.perform(post("/api/sales-orders").contentType(MediaType.APPLICATION_JSON).content("""
+                {"kodeCustomer": "CUS-021", "item": [{"kodeProduk": "BSK-004", "qty": 500}]}
+                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.total").value(7105000.0))
+                .andExpect(jsonPath("$.status").value("SIAP_DIFAKTURKAN"));
     }
 }
